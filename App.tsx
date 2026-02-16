@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import GameScene from './components/GameCanvas';
+import GameScene, { PhysicsState } from './components/GameCanvas';
 import ControlPanel from './components/ControlPanel';
 import { GameState, GameStatus, GameEvent, Mission } from './types';
-import { generateMissionContext, generateSectorImage, AdmiralLiveConnection, getApiKey } from './services/geminiService';
-import { decode, decodeAudioData } from './utils/audioUtils';
+import { generateMissionContext, generateSectorImage, GameMasterConnection, PhysicsAnomaly, getApiKey } from './services/geminiService';
 import { INITIAL_BALLS } from './constants';
+
+const DEFAULT_PHYSICS: PhysicsState = {
+  gravity: -30,
+  bumperBounce: 2.5,
+  flipperStrength: 1.0,
+};
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
@@ -12,115 +17,76 @@ const App: React.FC = () => {
     balls: INITIAL_BALLS,
     status: GameStatus.IDLE,
     currentMission: null,
-    rank: "Cadet"
+    rank: "Hacker"
   });
 
+  const [physicsState, setPhysicsState] = useState<PhysicsState>(DEFAULT_PHYSICS);
+  const [activeAnomaly, setActiveAnomaly] = useState<PhysicsAnomaly | null>(null);
+
   const [missionImage, setMissionImage] = useState<string | null>(null);
-  const [narrativeLog, setNarrativeLog] = useState<string>("Initializing systems...");
+  const [narrativeLog, setNarrativeLog] = useState<string>("System Safe. No Intruders.");
   const [isAiThinking, setIsAiThinking] = useState(false);
 
-  // Audio Context & Admiral
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const admiralRef = useRef<AdmiralLiveConnection | null>(null);
+  // AI Connection
+  const gmRef = useRef<GameMasterConnection | null>(null);
 
-  // Audio Playback Queue
-  const audioQueueRef = useRef<string[]>([]);
-  const isPlayingAudioRef = useRef(false);
+  const handleAnomaly = (anomaly: PhysicsAnomaly) => {
+    setActiveAnomaly(anomaly);
+    setNarrativeLog(`ALERT: ${anomaly.message}`);
 
-  const processAudioQueue = async () => {
-    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
+    // Apply Physics Change
+    if (anomaly.type === 'GRAVITY') {
+      setPhysicsState(prev => ({ ...prev, gravity: anomaly.value }));
+    } else if (anomaly.type === 'BOUNCE') {
+      setPhysicsState(prev => ({ ...prev, bumperBounce: anomaly.value }));
+    } else if (anomaly.type === 'FLIPPER_GLITCH') {
+      setPhysicsState(prev => ({ ...prev, flipperStrength: anomaly.value }));
+    }
 
-    isPlayingAudioRef.current = true;
-    const chunk = audioQueueRef.current.shift();
-
-    if (chunk) {
-      try {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        const ctx = audioContextRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-
-        const pcmBytes = decode(chunk);
-        // Assuming 24kHz mono from Gemini Live/TTS defaults often
-        const audioBuffer = await decodeAudioData(pcmBytes, ctx, 24000, 1);
-
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
-        source.onended = () => {
-          isPlayingAudioRef.current = false;
-          processAudioQueue();
-        };
-        source.start();
-      } catch (e) {
-        console.error(e);
-        isPlayingAudioRef.current = false;
-        processAudioQueue(); // Skip corrupt chunk
-      }
-    } else {
-      isPlayingAudioRef.current = false;
+    // Reset after duration
+    if (anomaly.duration > 0) {
+      setTimeout(() => {
+        setPhysicsState(DEFAULT_PHYSICS);
+        setActiveAnomaly(null);
+        setNarrativeLog("System Stabilized.");
+      }, anomaly.duration);
     }
   };
 
-  const handleAdmiralAudio = (base64: string) => {
-    audioQueueRef.current.push(base64);
-    processAudioQueue();
-  };
-
-  const handleAdmiralTranscript = (text: string) => {
-    setNarrativeLog(text);
-  };
-
-  // Init Admiral on Mount
+  // Init GM on Mount
   useEffect(() => {
-    admiralRef.current = new AdmiralLiveConnection();
-    admiralRef.current.onAudioData = handleAdmiralAudio;
-    admiralRef.current.onTranscript = handleAdmiralTranscript;
+    gmRef.current = new GameMasterConnection();
+    gmRef.current.onAnomaly = handleAnomaly;
     return () => {
-      admiralRef.current?.disconnect();
+      gmRef.current?.disconnect();
     };
   }, []);
 
   const startGame = useCallback(async () => {
-    // Resume Audio Context on user interaction
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    }
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      await audioContextRef.current.resume();
-    }
-
-    const apiKey = getApiKey();
-
-    // Check API Key
-    if (!apiKey) {
-      console.warn("API_KEY not found. AI features disabled.");
-    }
-
-    // Connect Live API
-    if (admiralRef.current && apiKey) {
-      setIsAiThinking(true);
-      await admiralRef.current.connect();
-      setIsAiThinking(false);
-      admiralRef.current.sendEvent("New Game Started. Welcome the recruit.");
-    }
-
     setGameState(prev => ({
       ...prev,
       score: 0,
       balls: INITIAL_BALLS,
       status: GameStatus.PLAYING,
-      rank: "Recruit"
+      rank: "Script Kiddie"
     }));
 
-    // Generate Mission Text (Static GenAI)
-    const mission = await generateMissionContext(0, "Recruit");
+    const apiKey = getApiKey();
+    if (gmRef.current && apiKey) {
+      setIsAiThinking(true);
+      await gmRef.current.connect();
+      setIsAiThinking(false);
+      // Initial probe
+      gmRef.current.sendEvent("Hacker Accessing Mainframe.");
+    }
+
+
+    // Generate Mission
+    const mission = await generateMissionContext(0, "Script Kiddie");
     setGameState(prev => ({ ...prev, currentMission: { id: '1', ...mission, targetScore: 1000 }, rank: mission.rank }));
 
     // Generate Image
     generateSectorImage(mission.name).then(img => setMissionImage(img));
-
   }, []);
 
   const handleScore = (points: number) => {
@@ -134,48 +100,50 @@ const App: React.FC = () => {
       return { ...prev, balls: newBalls, status: newStatus };
     });
 
-    if (admiralRef.current) {
-      if (gameState.balls <= 1) {
-        admiralRef.current.sendEvent("Game Over. Final Report.");
-        setNarrativeLog("MISSION FAILED. RETURN TO BASE.");
-      } else {
-        admiralRef.current.sendEvent("Ball Lost. Reprimand them.");
-      }
+    if (gmRef.current) {
+      gmRef.current.sendEvent("Packet Loss Detected (Ball Lost)");
     }
-  }, [gameState.balls]);
+  }, []);
 
   // Game Event Handler
   const lastEventTime = useRef<number>(0);
   const handleGameEvent = useCallback(async (event: GameEvent) => {
     const now = Date.now();
-    // Throttle events
     if (now - lastEventTime.current < 2000) return;
     lastEventTime.current = now;
 
-    if (admiralRef.current) {
-      if (event === GameEvent.BUMPER_HIT) admiralRef.current.sendEvent("Bumper Hit.");
-      if (event === GameEvent.RAMP_SHOT) admiralRef.current.sendEvent("Ramp Shot.");
+    if (gmRef.current) {
+      if (event === GameEvent.BUMPER_HIT) gmRef.current.sendEvent("Firewall Breach (Bumper Hit)");
+      if (event === GameEvent.RAMP_SHOT) gmRef.current.sendEvent("Data Stream Accessed (Ramp Shot)");
     }
   }, []);
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-screen bg-slate-950 text-white overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-screen w-screen bg-black text-white overflow-hidden font-mono">
 
       {/* Left: 3D Game Area */}
-      <div className="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-900 to-black">
+      <div className={`flex-1 flex flex-col items-center justify-center relative transition-colors duration-500 ${activeAnomaly ? 'bg-red-900/20' : 'bg-black'}`}>
+
+        {/* Anomaly Overlay */}
+        {activeAnomaly && (
+          <div className="absolute top-10 left-0 right-0 z-40 flex justify-center pointer-events-none">
+            <div className="bg-red-600 text-black font-bold px-6 py-2 rounded text-2xl animate-pulse border-2 border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.8)]">
+              ⚠ {activeAnomaly.message} ⚠
+            </div>
+          </div>
+        )}
 
         {/* Game Title/Overlay */}
         {gameState.status === GameStatus.IDLE || gameState.status === GameStatus.GAME_OVER ? (
-          <div className="absolute z-50 flex flex-col items-center inset-0 justify-center bg-black/60 backdrop-blur-sm">
-            <h1 className="text-5xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 brand-font neon-glow text-center">
-              HYPERSPACE<br />CADET
+          <div className="absolute z-50 flex flex-col items-center inset-0 justify-center bg-black/80 backdrop-blur-sm">
+            <h1 className="text-5xl lg:text-7xl font-bold text-green-500 mb-8 tracking-widest glitch-text text-center">
+              SYSTEM<br />CRASH
             </h1>
             <button
               onClick={startGame}
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-full shadow-[0_0_30px_rgba(37,99,235,0.6)] transition-all transform hover:scale-105 brand-font text-xl border-2 border-blue-400 tracking-wider"
-              aria-label={gameState.status === GameStatus.GAME_OVER ? "Restart Game" : "Start Game"}
+              className="px-8 py-4 bg-green-700 hover:bg-green-600 text-black font-bold rounded shadow-[0_0_30px_rgba(21,128,61,0.6)] transition-all transform hover:scale-105 text-xl border border-green-400 tracking-wider"
             >
-              {gameState.status === GameStatus.GAME_OVER ? "RE-INITIALIZE SYSTEM" : "INITIATE LAUNCH SEQUENCE"}
+              {gameState.status === GameStatus.GAME_OVER ? "REBOOT KERNEL" : "INJECT PAYLOAD"}
             </button>
           </div>
         ) : null}
@@ -185,17 +153,17 @@ const App: React.FC = () => {
           onScore={handleScore}
           onEvent={handleGameEvent}
           onBallLost={handleBallLost}
+          physics={physicsState}
         />
 
-        {/* Controls Overlay */}
-        <div className="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-slate-500 font-mono pointer-events-none">
-          <span className="bg-black/50 p-2 rounded">FLIPPERS: A / D / ARROWS</span>
-          <span className="bg-black/50 p-2 rounded">LAUNCH: SPACE / ENTER</span>
+        <div className="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-green-800 font-mono pointer-events-none">
+          <span>GRAVITY: {physicsState.gravity}</span>
+          <span>BOUNCE: {physicsState.bumperBounce}</span>
         </div>
       </div>
 
       {/* Right: AI Control Panel */}
-      <div className="w-full lg:w-[450px] h-[35vh] lg:h-full z-20 shadow-2xl relative border-l border-slate-800">
+      <div className="w-full lg:w-[450px] h-[35vh] lg:h-full z-20 shadow-2xl relative border-l border-green-900">
         <ControlPanel
           gameState={gameState}
           missionImage={missionImage}
