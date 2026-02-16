@@ -22,8 +22,9 @@ export const generateMissionContext = async (score: number, currentRank: string)
   if (!ai) return { name: "Offline Mission", description: "Comms down. Survive manually.", rank: currentRank };
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-exp" }); // using widely available model
-    const response = await model.generateContent({
+    // Correct usage for @google/genai v0.1.0+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp",
       contents: [{
         role: 'user', parts: [{
           text: `Generate a sci-fi pinball mission. Current Score: ${score}. Current Rank: ${currentRank}.
@@ -32,7 +33,7 @@ export const generateMissionContext = async (score: number, currentRank: string)
       - description: Short imperative objective (e.g. "Hit the bumpers to destabilize the core.")
       - rank: A sci-fi military rank based on score (e.g. "Space Cadet", "Star Admiral").` }]
       }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -46,8 +47,8 @@ export const generateMissionContext = async (score: number, currentRank: string)
       }
     });
 
-    const text = response.response.text();
-    if (!text) throw new Error("No text returned");
+    const text = response.text;
+    if (!text) throw new Error("No text returned by Gemini");
     return JSON.parse(text);
   } catch (e) {
     console.error("Gemini Mission Error:", e);
@@ -61,7 +62,8 @@ export const generateSectorImage = async (missionName: string): Promise<string |
   if (!ai) return null;
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    // Placeholder for image generation
+    return null;
     // Note: Image generation via generateContent might need specific handling or tools depending on the model capabilities.
     // Ensure the model supports image generation or use a specific imaging model if available via API.
     // For now, attempting text-to-image if supported, otherwise this might just return text description of image.
