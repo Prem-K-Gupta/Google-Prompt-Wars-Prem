@@ -112,13 +112,15 @@ export class AdmiralLiveConnection {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          outputAudioTranscription: { model: "gemini-2.5-flash-native-audio-preview-12-2025" },
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } },
           },
-          systemInstruction: "You are the Fleet Admiral of a starship pinball interface. You provide terse, high-energy tactical commentary on the player's actions. Keep it extremely short (under 10 words). React to events like hits, drains, and missions. Use military sci-fi jargon.",
+          systemInstruction: { parts: [{ text: "You are the Fleet Admiral of a starship pinball interface. You provide terse, high-energy tactical commentary on the player's actions. Keep it extremely short (under 10 words). React to events like hits, drains, and missions. Use military sci-fi jargon." }] },
         }
       });
+      console.log('Session Keys:', Object.keys(this.session || {}));
+      console.log('Session Prototype:', Object.getPrototypeOf(this.session || {}));
+      console.log('Session object:', this.session);
     } catch (e) {
       console.error("Failed to connect Live API", e);
     }
