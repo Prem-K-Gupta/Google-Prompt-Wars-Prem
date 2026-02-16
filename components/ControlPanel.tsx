@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Mission, GameState } from '../types';
-import { Activity, Radio, Cpu, Award, Zap, Terminal, AlertTriangle, ShieldAlert, Rocket, Globe, Gauge, Share2 } from 'lucide-react';
+import { GameState } from '../types';
+import { Rocket, Globe, Cpu } from 'lucide-react';
 
 interface ControlPanelProps {
   gameState: GameState;
@@ -116,21 +116,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ gameState, missionImage, cu
           </div>
         )}
 
-        {/* Share Run & Game Control */}
-        <div className="p-4 border-t border-green-900 space-y-2">
-          <button
-            onClick={handleShare}
-            className="w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-300 border border-green-700 rounded flex items-center justify-center gap-2"
-          >
-            <Share2 className="w-4 h-4" /> SHARE RUN DATA
-          </button>
-          <button
-            onClick={onStartGame}
-            className="w-full py-3 bg-green-700 hover:bg-green-600 text-white font-bold rounded shadow-[0_0_10px_rgba(0,255,0,0.5)]"
-          >
-            {gameState.status === GameStatus.IDLE ? "INITIALIZE SYSTEM" : "REBOOT SYSTEM"}
-          </button>
-        </div>
 
       </div>
 

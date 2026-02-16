@@ -73,7 +73,7 @@ const VoiceControl: React.FC<VoiceControlProps> = ({ onAudioData, fuel }) => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        validResthttps: true,
+                        noiseSuppression: true,
                         sampleRate: 16000,
                         channelCount: 1
                     }

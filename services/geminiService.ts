@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { GameEvent, GameStats, LevelConfig, Artifact } from "../types";
+import { GameStats, LevelConfig, Artifact } from "../types";
 
 // Helper to safely get API key
 export const getApiKey = () => {

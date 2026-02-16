@@ -5,6 +5,12 @@ import { OrbitControls, Stars, Environment, PerspectiveCamera, Sparkles, Html, M
 import * as THREE from 'three';
 import { GameEvent, GameStatus, LevelConfig } from '../types';
 
+export type PhysicsState = {
+  gravity: number;
+  bumperBounce: number;
+  flipperStrength: number;
+};
+
 // Constants
 const TABLE_WIDTH = 22;
 const TABLE_HEIGHT = 42; // Taller table for more depth
@@ -12,12 +18,11 @@ const BALL_RADIUS = 0.5;
 
 interface GameSceneProps {
   status: GameStatus;
-  levelConfig: LevelConfig;
   onEvent: (event: GameEvent) => void;
   onScore: (points: number) => void;
   onBallLost: () => void;
-  onWarp: () => void;
-  physics?: LevelConfig['physics'];
+  onWormhole: () => void;
+  physics?: PhysicsState;
   visualTheme?: LevelConfig['visualTheme'];
 }
 
@@ -345,15 +350,30 @@ const PinballTable = ({ onEvent, onScore, onWormhole, config }: { onEvent: (e: G
 
 // --- Main Scene ---
 
-const GameScene: React.FC<GameSceneProps> = ({ status, levelConfig, onEvent, onScore, onBallLost, onWarp }) => {
+const GameScene: React.FC<GameSceneProps> = ({ status, onEvent, onScore, onBallLost, onWormhole, physics, visualTheme }) => {
   // Wormhole logic: Teleport ball to plunger lane or somewhere chaotic
   const [wormholeTrigger, setWormholeTrigger] = useState(0);
+
+  const defaultPhysics: PhysicsState = { gravity: -30, bumperBounce: 2.5, flipperStrength: 1.0 };
+  const defaultVisualTheme: LevelConfig['visualTheme'] = {
+    backgroundPrompt: '', primaryColor: '#00ff00', secondaryColor: '#004400', hazardColor: '#ff0000'
+  };
+
+  const activePhysics = physics || defaultPhysics;
+  const activeVisualTheme = visualTheme || defaultVisualTheme;
+
+  const levelConfig: LevelConfig = {
+    planetName: '',
+    visualTheme: activeVisualTheme,
+    physics: { ...activePhysics, friction: 0.1 },
+    boss: { name: '', description: '', weakness: 'CENTER', shieldStrength: 0 },
+    musicMood: ''
+  };
 
   const handleWormhole = () => {
     onScore(5000);
     onEvent(GameEvent.WORMHOLE_ENTERED);
-    // setWormholeTrigger(prev => prev + 1); // Triggers ball reset logic if needed
-    onWarp(); // Trigger AI Warp
+    onWormhole(); // Trigger AI Warp
   }
 
   return (
@@ -361,7 +381,6 @@ const GameScene: React.FC<GameSceneProps> = ({ status, levelConfig, onEvent, onS
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true, stencil: false, alpha: false }}>
         {/* Camera Setup */}
         <PerspectiveCamera makeDefault position={[0, 45, 25]} fov={35} onUpdate={c => c.lookAt(0, -5, 0)} />
-        {/* <OrbitControls target={[0, 0, 0]} maxPolarAngle={Math.PI / 2} minDistance={20} maxDistance={100} enablePan={false} /> */}
 
         {/* --- Post Processing / Environment --- */}
         <color attach="background" args={['#000000']} />
@@ -374,7 +393,7 @@ const GameScene: React.FC<GameSceneProps> = ({ status, levelConfig, onEvent, onS
 
         {/* Stars / Particles */}
         <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
-        <Sparkles count={200} scale={30} size={3} speed={0.4} opacity={0.4} color={levelConfig.visualTheme.primaryColor} />
+        <Sparkles count={200} scale={30} size={3} speed={0.4} opacity={0.4} color={activeVisualTheme.primaryColor} />
 
         {/* --- Dynamic Lighting --- */}
         <ambientLight intensity={0.2} />
@@ -387,17 +406,17 @@ const GameScene: React.FC<GameSceneProps> = ({ status, levelConfig, onEvent, onS
           intensity={40}
           castShadow
           shadow-mapSize={[2048, 2048]}
-          color={levelConfig.visualTheme.primaryColor}
+          color={activeVisualTheme.primaryColor}
         />
 
         {/* Cyberpunk Accents */}
-        <pointLight position={[-10, 10, -10]} intensity={20} color={levelConfig.visualTheme.secondaryColor} distance={40} decay={2} />
-        <pointLight position={[10, 10, 10]} intensity={20} color={levelConfig.visualTheme.hazardColor} distance={40} decay={2} />
+        <pointLight position={[-10, 10, -10]} intensity={20} color={activeVisualTheme.secondaryColor} distance={40} decay={2} />
+        <pointLight position={[10, 10, 10]} intensity={20} color={activeVisualTheme.hazardColor} distance={40} decay={2} />
 
 
         {/* --- Physics World --- */}
         <Suspense fallback={null}>
-          <Physics gravity={[0, levelConfig.physics.gravity, 0]} timeStep={1 / 60}>
+          <Physics gravity={[0, activePhysics.gravity, 0]} timeStep={1 / 60}>
             <PinballTable onEvent={onEvent} onScore={onScore} onWormhole={handleWormhole} config={levelConfig} />
             <Ball isPlaying={status === GameStatus.PLAYING} onLost={onBallLost} resetTrigger={wormholeTrigger} />
             {/* Catch-all Floor */}

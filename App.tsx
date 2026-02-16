@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import GameScene from './components/GameCanvas';
+import GameScene, { PhysicsState } from './components/GameCanvas';
 import ControlPanel from './components/ControlPanel';
 import VoiceControl from './components/VoiceControl';
-import { GameState, GameStatus, GameEvent, LevelConfig, GalaxyState, WarpState, Artifact, PhysicsState } from './types';
+import { GameState, GameStatus, GameEvent, LevelConfig, WarpState } from './types';
 import { generateMissionContext, generateSectorImage, GameMasterConnection, PhysicsAnomaly, getApiKey, generateLevelConfig, generateArtifact } from './services/geminiService';
 import { soundManager } from './services/soundManager';
 import { INITIAL_BALLS } from './constants';
@@ -21,7 +21,7 @@ const INITIAL_LEVEL_CONFIG: LevelConfig = {
     secondaryColor: "#004400",
     hazardColor: "#ff0000"
   },
-  physics: DEFAULT_PHYSICS,
+  physics: { ...DEFAULT_PHYSICS, friction: 0.1 },
   boss: {
     name: "Training Drone",
     description: "A basic target for target practice.",
@@ -374,8 +374,7 @@ const App: React.FC = () => {
           onScore={handleScore}
           onEvent={handleGameEvent}
           onBallLost={handleBallLost}
-          onWarp={handleWarp}
-          levelConfig={gameState.galaxy.currentPlanet}
+          onWormhole={handleWarp}
           physics={physicsState}
           visualTheme={gameState.galaxy.currentPlanet.visualTheme}
         />
