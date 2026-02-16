@@ -2,7 +2,7 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GameEvent } from "../types";
 
 // Helper to safely get API key
-const getApiKey = () => {
+export const getApiKey = () => {
   return import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || "";
 };
 
@@ -71,7 +71,7 @@ export const generateSectorImage = async (missionName: string): Promise<string |
 // 3. Live Connection (The Admiral)
 export class AdmiralLiveConnection {
   private ai: GoogleGenAI | null = null;
-  private session: any = null;
+  private session: any = null; // Session type is complex in current SDK version
   public onAudioData: ((base64: string) => void) | null = null;
   public onTranscript: ((text: string) => void) | null = null;
   private currentTranscription = "";
@@ -88,7 +88,7 @@ export class AdmiralLiveConnection {
 
     try {
       this.session = await this.ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-2.0-flash-exp', // Updated to latest experimental model for Live API
         callbacks: {
           onopen: () => console.log("Admiral Online"),
           onmessage: (msg: any) => this.handleMessage(msg),
@@ -104,8 +104,6 @@ export class AdmiralLiveConnection {
         }
       });
       console.log('Session Keys:', Object.keys(this.session || {}));
-      console.log('Session Prototype:', Object.getPrototypeOf(this.session || {}));
-      console.log('Session object:', this.session);
     } catch (e) {
       console.error("Failed to connect Live API", e);
     }
@@ -119,9 +117,8 @@ export class AdmiralLiveConnection {
     }
 
     // Handle Transcription
-    // Documentation update: Use message.serverContent.outputTranscription.text
-    if (message.serverContent?.outputTranscription?.text) {
-      this.currentTranscription += message.serverContent.outputTranscription.text;
+    if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
+      this.currentTranscription += message.serverContent.modelTurn.parts[0].text;
     }
 
     if (message.serverContent?.turnComplete) {
