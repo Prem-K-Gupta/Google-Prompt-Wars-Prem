@@ -1,0 +1,7 @@
+{
+  "name": "HyperSpace Cadet AI",
+  "description": "An evolution of the classic Space Cadet Pinball. Features a procedurally generated narrative, AI-driven commentary, and dynamic mission visualization using Google Gemini.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
