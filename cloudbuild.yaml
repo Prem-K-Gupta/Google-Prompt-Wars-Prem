@@ -1,0 +1,16 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/hyperspace-cadet-ai',
+      '--build-arg', 'VITE_GEMINI_API_KEY=${_VITE_GEMINI_API_KEY}',
+      '.'
+    ]
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/hyperspace-cadet-ai']
+
+images:
+  - 'gcr.io/$PROJECT_ID/hyperspace-cadet-ai'
+
+substitutions:
+  _VITE_GEMINI_API_KEY: ''

@@ -7,6 +7,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Accept the API Key as a build argument
+ARG VITE_GEMINI_API_KEY
+ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
+
 RUN npm run build
 
 # Production stage
