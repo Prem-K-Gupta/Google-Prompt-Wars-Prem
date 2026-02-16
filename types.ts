@@ -49,6 +49,8 @@ export interface LevelConfig {
   musicMood: string;
 }
 
+export type PhysicsState = LevelConfig['physics'];
+
 export interface BossConfig {
   name: string;
   description: string;

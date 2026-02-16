@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, Type, SchemaType } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { GameEvent, GameStats, LevelConfig, Artifact } from "../types";
 
 // Helper to safely get API key
@@ -185,10 +185,19 @@ export const generateLevelConfig = async (level: number, stats: GameStats): Prom
     console.error("Gemini Level Gen Error:", e);
     return fallbackLevel;
   }
-  model: "gemini-2.0-flash",
-    contents: [{
-      role: 'user', parts: [{
-        text: `Generate a unique Sci-Fi Pinball Artifact (Upgrade) or Item.
+};
+
+// 2.5 Generate Artifact
+export const generateArtifact = async (rank: string): Promise<Artifact | null> => {
+  const ai = getAiClient();
+  if (!ai) return null;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{
+        role: 'user', parts: [{
+          text: `Generate a unique Sci-Fi Pinball Artifact (Upgrade) or Item.
           Player Rank: ${rank}.
 
           Types:
@@ -200,32 +209,32 @@ export const generateLevelConfig = async (level: number, stats: GameStats): Prom
 
           Return JSON matching the Artifact schema.
           Value should be appropriate multiplier (e.g. 1.1 to 2.0).` }]
-    }],
+      }],
       config: {
-    responseMimeType: "application/json",
-      responseSchema: {
-      type: Type.OBJECT,
-        properties: {
-        name: { type: Type.STRING },
-        description: { type: Type.STRING },
-        effectType: { type: Type.STRING, enum: ["GRAVITY", "BOUNCE", "FLIPPER", "SCORE_MULTIPLIER", "MULTIBALL"] },
-        value: { type: Type.NUMBER }
-      },
-      required: ["name", "description", "effectType", "value"]
-    }
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            description: { type: Type.STRING },
+            effectType: { type: Type.STRING, enum: ["GRAVITY", "BOUNCE", "FLIPPER", "SCORE_MULTIPLIER", "MULTIBALL"] },
+            value: { type: Type.NUMBER }
+          },
+          required: ["name", "description", "effectType", "value"]
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) return null;
+    const data = JSON.parse(text);
+    return { id: Math.random().toString(36).substr(2, 9), ...data } as Artifact;
+
+  } catch (e) {
+    console.error("Artifact Gen Error:", e);
+    return null;
   }
-});
-
-const text = response.text;
-if (!text) return null;
-const data = JSON.parse(text);
-return { id: Math.random().toString(36).substr(2, 9), ...data } as Artifact;
-
-    } catch (e) {
-  console.error("Artifact Gen Error:", e);
-  return null;
-}
-  };
+};
 
 // 3. Generate Sector Image
 export const generateSectorImage = async (missionName: string): Promise<string | null> => {

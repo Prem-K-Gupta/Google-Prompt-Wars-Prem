@@ -17,6 +17,8 @@ interface GameSceneProps {
   onScore: (points: number) => void;
   onBallLost: () => void;
   onWarp: () => void;
+  physics?: LevelConfig['physics'];
+  visualTheme?: LevelConfig['visualTheme'];
 }
 
 // --- Dynamic Materials (We create these dynamically based on props usually, but here we can update colors) ---

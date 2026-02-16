@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import GameScene, { PhysicsState } from './components/GameCanvas';
+import GameScene from './components/GameCanvas';
 import ControlPanel from './components/ControlPanel';
 import VoiceControl from './components/VoiceControl';
-import { GameState, GameStatus, GameEvent, LevelConfig, GalaxyState, WarpState, Artifact } from './types';
+import { GameState, GameStatus, GameEvent, LevelConfig, GalaxyState, WarpState, Artifact, PhysicsState } from './types';
 import { generateMissionContext, generateSectorImage, GameMasterConnection, PhysicsAnomaly, getApiKey, generateLevelConfig, generateArtifact } from './services/geminiService';
+import { soundManager } from './services/soundManager';
 import { INITIAL_BALLS } from './constants';
 
 const DEFAULT_PHYSICS: PhysicsState = {
@@ -214,20 +215,24 @@ const App: React.FC = () => {
         case GameEvent.LEFT_RAMP_SHOT:
           stats.leftRampHits++;
           fuelGain = 10;
+          soundManager.playRamp();
           break;
         case GameEvent.RIGHT_RAMP_SHOT:
           stats.rightRampHits++;
           fuelGain = 10;
+          soundManager.playRamp();
           break;
         case GameEvent.BUMPER_HIT:
           stats.bumperHits++;
           fuelGain = 2;
+          soundManager.playBumper();
           break;
         case GameEvent.WORMHOLE_ENTERED:
           stats.wormholeEnters++;
           break;
         case GameEvent.DRAIN: // DRAIN is used in types.ts
           stats.drains++;
+          soundManager.playDrain();
           break;
       }
 
@@ -265,7 +270,7 @@ const App: React.FC = () => {
 
   // --- Warp Logic ---
 
-  const handleWormholeEnter = useCallback(async () => {
+  const handleWarp = useCallback(async () => {
     const currentGalaxy = gameStateRef.current.galaxy;
 
     // Only warp if ready
@@ -278,6 +283,7 @@ const App: React.FC = () => {
       }));
       setNarrativeLog("INITIATING WARP JUMP...");
       setIsAiThinking(true);
+      soundManager.playWarp();
 
       // 2. Generate Next Level & Artifact
       const nextLevel = await generateLevelConfig(currentGalaxy.currentLevel + 1, gameStateRef.current.stats);
@@ -368,7 +374,8 @@ const App: React.FC = () => {
           onScore={handleScore}
           onEvent={handleGameEvent}
           onBallLost={handleBallLost}
-          onWormhole={handleWormholeEnter}
+          onWarp={handleWarp}
+          levelConfig={gameState.galaxy.currentPlanet}
           physics={physicsState}
           visualTheme={gameState.galaxy.currentPlanet.visualTheme}
         />
