@@ -28,29 +28,6 @@ export interface GameState {
   rank: string;
 }
 
-export interface Vector {
-  x: number;
-  y: number;
-}
+// Vector and Ball interfaces removed as they are handled internally by Rapier/Three.js
 
-export interface Ball {
-  pos: Vector;
-  vel: Vector;
-  radius: number;
-  active: boolean;
-}
-
-export interface Flipper {
-  type: 'left' | 'right';
-  angle: number;
-  restingAngle: number;
-  activeAngle: number;
-  angularVelocity: number;
-}
-
-export interface Bumper {
-  pos: Vector;
-  radius: number;
-  score: number;
-  color: string;
-}
+// Flipper and Bumper interfaces removed as they are unused by the React components
