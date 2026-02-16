@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Mission, GameState } from '../types';
-import { Activity, Radio, Cpu, Award, Zap, Terminal, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Activity, Radio, Cpu, Award, Zap, Terminal, AlertTriangle, ShieldAlert, Rocket, Globe, Gauge } from 'lucide-react';
 
 interface ControlPanelProps {
   gameState: GameState;
@@ -57,6 +57,45 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ gameState, missionImage, cu
         <div className="border border-green-900 bg-green-900/10 p-3">
           <div className="text-[10px] text-green-700 mb-1">ACCESS LEVEL (RANK)</div>
           <div className="text-xl text-green-400 font-bold truncate">{gameState.rank}</div>
+        </div>
+      </div>
+
+      {/* Warp & System Status */}
+      <div className="mb-6 space-y-4 relative z-10">
+
+        {/* Warp Drive */}
+        <div className="border border-green-900 bg-green-900/5 p-3">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2 text-green-400">
+              <Rocket className="w-4 h-4" />
+              <span className="text-xs font-bold tracking-widest">WARP DRIVE</span>
+            </div>
+            <span className={`text-[10px] font-bold ${gameState.galaxy.fuel >= 100 ? 'text-cyan-400 animate-pulse' : 'text-green-700'}`}>
+              {gameState.galaxy.fuel >= 100 ? "READY" : "CHARGING"}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-green-900/30 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ${gameState.galaxy.fuel >= 100 ? 'bg-cyan-400 shadow-[0_0_10px_#22d3ee]' : 'bg-green-600'}`}
+              style={{ width: `${gameState.galaxy.fuel}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Planet Info */}
+        <div className="border border-green-900 bg-green-900/5 p-3">
+          <div className="flex items-center gap-2 text-green-400 mb-2">
+            <Globe className="w-4 h-4" />
+            <span className="text-xs font-bold tracking-widest">SYSTEM DATA</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[10px]">
+            <div className="text-green-600">SECTOR:</div>
+            <div className="text-right text-green-300 truncate">{gameState.galaxy.currentPlanet.planetName}</div>
+            <div className="text-green-600">GRAVITY:</div>
+            <div className="text-right text-green-300">{gameState.galaxy.currentPlanet.physics.gravity.toFixed(1)} m/s²</div>
+            <div className="text-green-600">BOUNCE:</div>
+            <div className="text-right text-green-300">{gameState.galaxy.currentPlanet.physics.bumperBounce.toFixed(1)}x</div>
+          </div>
         </div>
       </div>
 
