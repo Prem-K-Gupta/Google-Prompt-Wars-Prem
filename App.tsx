@@ -112,10 +112,7 @@ const App: React.FC = () => {
   }, []);
 
   const getSafeApiKey = () => {
-    if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-    return null;
+    return import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || "";
   };
 
   const startGame = useCallback(async () => {

@@ -3,15 +3,7 @@ import { GameEvent } from "../types";
 
 // Helper to safely get API key
 const getApiKey = () => {
-  try {
-    // Check if process exists first
-    if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-  } catch (e) {
-    // Ignore error if process is not defined
-  }
-  return "";
+  return import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || "";
 };
 
 // Helper to get client
@@ -102,13 +94,13 @@ export class AdmiralLiveConnection {
   constructor() {
     const apiKey = getApiKey();
     if (apiKey) {
-        this.ai = new GoogleGenAI({ apiKey });
+      this.ai = new GoogleGenAI({ apiKey });
     }
   }
 
   async connect() {
     if (!this.ai) return;
-    
+
     try {
       this.session = await this.ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -142,14 +134,14 @@ export class AdmiralLiveConnection {
     // Handle Transcription
     // Documentation update: Use message.serverContent.outputTranscription.text
     if (message.serverContent?.outputTranscription?.text) {
-        this.currentTranscription += message.serverContent.outputTranscription.text;
+      this.currentTranscription += message.serverContent.outputTranscription.text;
     }
 
     if (message.serverContent?.turnComplete) {
-        if (this.onTranscript && this.currentTranscription) {
-            this.onTranscript(this.currentTranscription);
-            this.currentTranscription = "";
-        }
+      if (this.onTranscript && this.currentTranscription) {
+        this.onTranscript(this.currentTranscription);
+        this.currentTranscription = "";
+      }
     }
   }
 
@@ -159,7 +151,7 @@ export class AdmiralLiveConnection {
         // Send text as input to trigger reaction
         await this.session.send({ parts: [{ text }] }, true); // true = end of turn
       } catch (e) {
-          console.error("Error sending event to Admiral", e);
+        console.error("Error sending event to Admiral", e);
       }
     }
   }
