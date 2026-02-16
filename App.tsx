@@ -1,32 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import GameScene from './components/GameCanvas';
+import GameScene, { PhysicsState } from './components/GameCanvas';
 import ControlPanel from './components/ControlPanel';
 import VoiceControl from './components/VoiceControl';
-import { GameState, GameStatus, GameEvent, LevelConfig, GalaxyState, WarpState } from './types';
-import { generateMissionContext, generateSectorImage, GameMasterConnection, PhysicsAnomaly, getApiKey, generateLevelConfig } from './services/geminiService';
+import { GameState, GameStatus, GameEvent, LevelConfig, GalaxyState, WarpState, Artifact } from './types';
+import { generateMissionContext, generateSectorImage, GameMasterConnection, PhysicsAnomaly, getApiKey, generateLevelConfig, generateArtifact } from './services/geminiService';
 import { INITIAL_BALLS } from './constants';
 
+const DEFAULT_PHYSICS: PhysicsState = {
+  gravity: -30,
+  bumperBounce: 2.5,
+  flipperStrength: 1.0,
+};
+
 const INITIAL_LEVEL_CONFIG: LevelConfig = {
-  planetName: "Terra Prime (Home Base)",
+  planetName: "Sector 0 (Training Sim)",
   visualTheme: {
-    backgroundPrompt: "Retro sci-fi arcade, neon blue and orange, z-stars",
-    primaryColor: "#00ffff",
-    secondaryColor: "#ff00ff",
+    backgroundPrompt: "Standard space station interior, neutral lighting",
+    primaryColor: "#00ff00",
+    secondaryColor: "#004400",
     hazardColor: "#ff0000"
   },
-  physics: {
-    gravity: -30,
-    friction: 0.1,
-    bumperBounce: 2.5,
-    flipperStrength: 1.0
-  },
+  physics: DEFAULT_PHYSICS,
   boss: {
-    name: "System Core",
-    description: "The central CPU of the arcade simulation.",
+    name: "Training Drone",
+    description: "A basic target for target practice.",
     weakness: "CENTER",
-    shieldStrength: 100
+    shieldStrength: 50
   },
-  musicMood: "Synthwave, Upbeat"
+  musicMood: "Calm, ambient"
 };
 
 const App: React.FC = () => {
@@ -46,30 +47,33 @@ const App: React.FC = () => {
     galaxy: {
       currentLevel: 1,
       currentPlanet: INITIAL_LEVEL_CONFIG,
-      fuel: 100,
-      artifacts: [],
-      warpState: WarpState.IDLE
+      warpState: WarpState.IDLE,
+      fuel: 0,
+      artifacts: []
     }
   });
 
+  const [physicsState, setPhysicsState] = useState<PhysicsState>(DEFAULT_PHYSICS);
   const [activeAnomaly, setActiveAnomaly] = useState<PhysicsAnomaly | null>(null);
+
   const [missionImage, setMissionImage] = useState<string | null>(null);
   const [narrativeLog, setNarrativeLog] = useState<string>("System Safe. No Intruders.");
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const [isWarping, setIsWarping] = useState(false);
 
   // AI Connection
   const gmRef = useRef<GameMasterConnection | null>(null);
-  const fuelRef = useRef(100);
+  const gameStateRef = useRef(gameState); // Ref for accessing current state in callbacks
 
-  // Sync fuel ref
+  // Sync ref
   useEffect(() => {
-    fuelRef.current = gameState.galaxy.fuel;
-  }, [gameState.galaxy.fuel]);
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
-  const handleAnomalyWrapper = useCallback((anomaly: PhysicsAnomaly) => {
+
+  const handleAnomaly = useCallback((anomaly: PhysicsAnomaly) => {
+    // Handle SHIP_SYSTEM events (Positive)
     if (anomaly.type === 'SHIP_SYSTEM') {
-      const currentFuel = fuelRef.current;
+      const currentFuel = gameStateRef.current.galaxy.fuel;
       const cost = anomaly.cost || 20;
 
       if (currentFuel >= cost) {
@@ -78,6 +82,19 @@ const App: React.FC = () => {
           galaxy: { ...prev.galaxy, fuel: prev.galaxy.fuel - cost }
         }));
         setNarrativeLog(`COMMAND ACCEPTED: ${anomaly.action}`);
+
+        if (anomaly.action === 'SHIELDS_UP') {
+          setPhysicsState(prev => ({ ...prev, bumperBounce: 5 })); // Super bounce
+          setTimeout(() => setPhysicsState(gameStateRef.current.galaxy.currentPlanet.physics), 10000);
+        } else if (anomaly.action === 'FLIPPER_BOOST') {
+          setPhysicsState(prev => ({ ...prev, flipperStrength: 2.0 }));
+          setTimeout(() => setPhysicsState(gameStateRef.current.galaxy.currentPlanet.physics), 10000);
+        } else if (anomaly.action === 'REFUEL') {
+          setGameState(prev => ({
+            ...prev,
+            galaxy: { ...prev.galaxy, fuel: Math.min(100, prev.galaxy.fuel + 50) }
+          }));
+        }
       } else {
         setNarrativeLog(`COMMAND FAILED: INSUFFICIENT FUEL`);
       }
@@ -87,23 +104,34 @@ const App: React.FC = () => {
     setActiveAnomaly(anomaly);
     setNarrativeLog(`ALERT: ${anomaly.message}`);
 
+    // Apply Physics Change (Negative/Anomalies)
+    if (anomaly.type === 'GRAVITY') {
+      setPhysicsState(prev => ({ ...prev, gravity: anomaly.value }));
+    } else if (anomaly.type === 'BOUNCE') {
+      setPhysicsState(prev => ({ ...prev, bumperBounce: anomaly.value }));
+    } else if (anomaly.type === 'FLIPPER_GLITCH') {
+      setPhysicsState(prev => ({ ...prev, flipperStrength: anomaly.value }));
+    }
+
+    // Reset after duration
     if (anomaly.duration > 0) {
       setTimeout(() => {
+        // Restore to current planet physics
+        setPhysicsState(gameStateRef.current.galaxy.currentPlanet.physics);
         setActiveAnomaly(null);
         setNarrativeLog("System Stabilized.");
       }, anomaly.duration);
     }
   }, []);
 
+  // Init GM on Mount
   useEffect(() => {
-    if (!gmRef.current) {
-      gmRef.current = new GameMasterConnection();
-    }
-    gmRef.current.onAnomaly = handleAnomalyWrapper;
+    gmRef.current = new GameMasterConnection();
+    gmRef.current.onAnomaly = handleAnomaly;
     return () => {
       gmRef.current?.disconnect();
     };
-  }, [handleAnomalyWrapper]);
+  }, [handleAnomaly]);
 
 
   const startGame = useCallback(async () => {
@@ -113,7 +141,7 @@ const App: React.FC = () => {
       balls: INITIAL_BALLS,
       status: GameStatus.PLAYING,
       rank: "Script Kiddie",
-      stats: {
+      stats: { // Reset Stats
         leftRampHits: 0,
         rightRampHits: 0,
         bumperHits: 0,
@@ -121,80 +149,188 @@ const App: React.FC = () => {
         drains: 0
       },
       galaxy: {
+        ...prev.galaxy,
         currentLevel: 1,
-        currentPlanet: INITIAL_LEVEL_CONFIG,
-        fuel: 100,
-        artifacts: [],
-        warpState: WarpState.IDLE
+        warpState: WarpState.IDLE,
+        fuel: 0 // Reset Fuel
       }
     }));
+
+    // Reset Physics to Default/Initial
+    setPhysicsState(INITIAL_LEVEL_CONFIG.physics);
 
     const apiKey = getApiKey();
     if (gmRef.current && apiKey) {
       setIsAiThinking(true);
       await gmRef.current.connect();
       setIsAiThinking(false);
+      // Initial probe
       gmRef.current.sendEvent("Hacker Accessing Mainframe.");
     }
 
+
+    // Generate Mission
     const mission = await generateMissionContext(0, "Script Kiddie");
     setGameState(prev => ({ ...prev, currentMission: { id: '1', ...mission, targetScore: 1000 }, rank: mission.rank }));
+
+    // Generate Image
     generateSectorImage(mission.name).then(img => setMissionImage(img));
   }, []);
 
+
+  // --- Game Event Handlers ---
+
   const handleScore = useCallback((points: number) => {
-    setGameState(prev => ({ ...prev, score: prev.score + points }));
+    setGameState(prev => {
+      // Apply Artifact Multipliers
+      const multipliers = prev.galaxy.artifacts
+        .filter(a => a.effectType === 'SCORE_MULTIPLIER')
+        .reduce((acc, a) => acc * a.value, 1);
+
+      return { ...prev, score: prev.score + Math.round(points * multipliers) };
+    });
   }, []);
 
   const handleGameEvent = useCallback((event: GameEvent) => {
-    if (gmRef.current) gmRef.current.sendEvent(event.replace('_', ' '));
-
     setGameState(prev => {
-      const newStats = { ...prev.stats };
-      if (event === GameEvent.LEFT_RAMP_SHOT) newStats.leftRampHits++;
-      if (event === GameEvent.RIGHT_RAMP_SHOT) newStats.rightRampHits++;
-      if (event === GameEvent.BUMPER_HIT) newStats.bumperHits++;
-      if (event === GameEvent.WORMHOLE_ENTERED) newStats.wormholeEnters++;
-      if (event === GameEvent.BALL_LOST) newStats.drains++;
-      return { ...prev, stats: newStats };
+      const stats = { ...prev.stats };
+      let fuelGain = 0;
+      let balls = prev.balls;
+
+      // Artifact Effects
+      if (event === GameEvent.LEFT_RAMP_SHOT || event === GameEvent.RIGHT_RAMP_SHOT) {
+        // Multiball Capacitor
+        const hasMultiball = prev.galaxy.artifacts.some(a => a.effectType === 'MULTIBALL');
+        if (hasMultiball && Math.random() < 0.05) {
+          balls += 1; // Instant Multi-ball!
+          // Note: In a real physics engine we'd trigger a spawn event, here we just add life/ball count or logic
+          // For this R3F setup, adding a ball requires spawning a new RigidBody. 
+          // The current GameScene handles 1 ball. We will just simulate "Extra Life" for now or 
+          // properly implement multiball later. Let's make it an "Extra Ball" reserve.
+        }
+      }
+
+      switch (event) {
+        case GameEvent.LEFT_RAMP_SHOT:
+          stats.leftRampHits++;
+          fuelGain = 10;
+          break;
+        case GameEvent.RIGHT_RAMP_SHOT:
+          stats.rightRampHits++;
+          fuelGain = 10;
+          break;
+        case GameEvent.BUMPER_HIT:
+          stats.bumperHits++;
+          fuelGain = 2;
+          break;
+        case GameEvent.WORMHOLE_ENTERED:
+          stats.wormholeEnters++;
+          break;
+        case GameEvent.DRAIN: // DRAIN is used in types.ts
+          stats.drains++;
+          break;
+      }
+
+      const newFuel = Math.min(100, prev.galaxy.fuel + fuelGain);
+      const newWarpState = newFuel >= 100 && prev.galaxy.warpState === WarpState.IDLE
+        ? WarpState.READY
+        : prev.galaxy.warpState;
+
+      // Notify GM
+      gmRef.current?.sendEvent(event.replace ? event.replace('_', ' ') : event);
+
+      return {
+        ...prev,
+        stats,
+        balls,
+        galaxy: {
+          ...prev.galaxy,
+          fuel: newFuel,
+          warpState: newWarpState
+        }
+      };
     });
   }, []);
 
   const handleBallLost = useCallback(() => {
     setGameState(prev => {
       const newBalls = prev.balls - 1;
-      if (newBalls <= 0) {
-        return { ...prev, balls: 0, status: GameStatus.GAME_OVER };
-      }
-      return { ...prev, balls: newBalls };
+      return {
+        ...prev,
+        balls: newBalls,
+        status: newBalls <= 0 ? GameStatus.GAME_OVER : GameStatus.PLAYING
+      };
     });
-    handleGameEvent(GameEvent.BALL_LOST);
-  }, [handleGameEvent]);
+  }, []);
 
-  // WARP MECHANIC
-  const handleWarp = useCallback(async () => {
-    if (isWarping) return;
-    setIsWarping(true);
-    setNarrativeLog("INITIATING WARP JUMP...");
-    setIsAiThinking(true);
+  // --- Warp Logic ---
 
-    const nextLevelConfig = await generateLevelConfig(gameState.galaxy.currentLevel + 1, gameState.stats);
-    generateSectorImage(nextLevelConfig.planetName).then(img => setMissionImage(img));
+  const handleWormholeEnter = useCallback(async () => {
+    const currentGalaxy = gameStateRef.current.galaxy;
 
-    setIsAiThinking(false);
+    // Only warp if ready
+    if (currentGalaxy.warpState === WarpState.READY) {
 
-    setGameState(prev => ({
-      ...prev,
-      galaxy: {
-        ...prev.galaxy,
-        currentLevel: prev.galaxy.currentLevel + 1,
-        currentPlanet: nextLevelConfig
+      // 1. Lock State
+      setGameState(prev => ({
+        ...prev,
+        galaxy: { ...prev.galaxy, warpState: WarpState.WARPING }
+      }));
+      setNarrativeLog("INITIATING WARP JUMP...");
+      setIsAiThinking(true);
+
+      // 2. Generate Next Level & Artifact
+      const nextLevel = await generateLevelConfig(currentGalaxy.currentLevel + 1, gameStateRef.current.stats);
+      const newArtifact = await generateArtifact(gameStateRef.current.rank);
+
+      // 3. Wait a bit for effect
+
+      // 4. Update Game State
+      setGameState(prev => {
+        const updatedArtifacts = newArtifact ? [...prev.galaxy.artifacts, newArtifact] : prev.galaxy.artifacts;
+        return {
+          ...prev,
+          galaxy: {
+            ...prev.galaxy,
+            currentLevel: prev.galaxy.currentLevel + 1,
+            currentPlanet: nextLevel,
+            warpState: WarpState.IDLE,
+            fuel: 0,
+            artifacts: updatedArtifacts
+          }
+        };
+      });
+
+      // 5. Update Physics & Visuals
+      // Apply Artifact Modifiers
+      let newPhysics = { ...nextLevel.physics };
+      const artifacts = gameStateRef.current.galaxy.artifacts;
+      const allArtifacts = newArtifact ? [...artifacts, newArtifact] : artifacts;
+
+      allArtifacts.forEach(a => {
+        if (a.effectType === 'GRAVITY') newPhysics.gravity *= a.value;
+        if (a.effectType === 'BOUNCE') newPhysics.bumperBounce *= a.value;
+        if (a.effectType === 'FLIPPER') newPhysics.flipperStrength *= a.value;
+      });
+
+      setPhysicsState(newPhysics);
+      setNarrativeLog(`ARRIVED AT: ${nextLevel.planetName}`);
+      if (newArtifact) {
+        setTimeout(() => setNarrativeLog(`ARTIFACT FOUND: ${newArtifact.name}`), 2000);
       }
-    }));
+      setIsAiThinking(false);
 
-    setNarrativeLog(`ARRIVED AT: ${nextLevelConfig.planetName}`);
-    setIsWarping(false);
-  }, [gameState.galaxy.currentLevel, gameState.stats, isWarping]);
+      // 6. Generate new background image
+      generateSectorImage(nextLevel.planetName).then(img => setMissionImage(img));
+
+    } else {
+      // Just a normal wormhole hit
+      handleScore(5000);
+      handleGameEvent(GameEvent.WORMHOLE_ENTERED);
+      setNarrativeLog("Wormhole unstable. Insufficient fuel.");
+    }
+  }, [handleGameEvent, handleScore]);
+
 
   const handleAudioData = (base64: string) => {
     if (gmRef.current) {
@@ -206,8 +342,10 @@ const App: React.FC = () => {
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-black text-white overflow-hidden font-mono">
 
       {/* Left: 3D Game Area */}
-      <div className={`flex-1 flex flex-col items-center justify-center relative transition-colors duration-1000 ${isWarping ? 'animate-pulse bg-indigo-900' : ''}`}
-        style={{ backgroundColor: isWarping ? '#000' : gameState.galaxy.currentPlanet.visualTheme.secondaryColor + '20' }}>
+      <div className={`flex-1 flex flex-col items-center justify-center relative transition-colors duration-1000 
+        ${activeAnomaly ? 'bg-red-900/20' : ''} 
+        ${gameState.galaxy.warpState === WarpState.WARPING ? 'animate-pulse bg-indigo-900' : 'bg-black'}
+      `}>
 
         {/* Anomaly Overlay */}
         {activeAnomaly && (
@@ -219,41 +357,26 @@ const App: React.FC = () => {
         )}
 
         {/* Warp Overlay */}
-        {isWarping && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="text-4xl font-bold text-cyan-400 animate-bounce">WARPING TO NEXT SECTOR...</div>
-          </div>
-        )}
-
-        {/* Game Title Overlay (when idle) */}
-        {gameState.status === GameStatus.IDLE && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-            <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 mb-8 filter drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
-              VOID CADET
-            </h1>
-            <button
-              onClick={startGame}
-              className="px-8 py-4 bg-green-600 hover:bg-green-500 text-black font-bold text-xl rounded shadow-[0_0_15px_rgba(22,163,74,0.6)] transition-all transform hover:scale-105"
-            >
-              INITIALIZE SYSTEM
-            </button>
+        {gameState.galaxy.warpState === WarpState.WARPING && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
+            <div className="text-6xl font-black text-cyan-400 animate-ping">WARPING...</div>
           </div>
         )}
 
         <GameScene
           status={gameState.status}
-          // @ts-ignore
-          levelConfig={gameState.galaxy.currentPlanet}
           onScore={handleScore}
           onEvent={handleGameEvent}
           onBallLost={handleBallLost}
-          // @ts-ignore
-          onWarp={handleWarp}
+          onWormhole={handleWormholeEnter}
+          physics={physicsState}
+          visualTheme={gameState.galaxy.currentPlanet.visualTheme}
         />
 
-        <div className="absolute bottom-4 left-4 right-4 flex justify-between text-xs font-mono pointer-events-none" style={{ color: gameState.galaxy.currentPlanet.visualTheme.primaryColor }}>
+        <div className="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-green-800 font-mono pointer-events-none">
+          <span>GRAVITY: {physicsState.gravity}</span>
           <span>PLANET: {gameState.galaxy.currentPlanet.planetName}</span>
-          <span>GRAVITY: {gameState.galaxy.currentPlanet.physics.gravity}</span>
+          <span>WARP: {gameState.galaxy.warpState} ({gameState.galaxy.fuel}%)</span>
         </div>
       </div>
 
@@ -266,6 +389,14 @@ const App: React.FC = () => {
             currentNarrative={narrativeLog}
             isAiThinking={isAiThinking}
           />
+          <div className="p-4 border-t border-green-900">
+            <button
+              onClick={startGame}
+              className="w-full py-3 bg-green-700 hover:bg-green-600 text-white font-bold rounded shadow-[0_0_10px_rgba(0,255,0,0.5)]"
+            >
+              {gameState.status === GameStatus.IDLE ? "INITIALIZE SYSTEM" : "REBOOT SYSTEM"}
+            </button>
+          </div>
         </div>
 
         {/* Voice Control at Bottom */}

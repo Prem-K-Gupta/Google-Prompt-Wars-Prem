@@ -97,6 +97,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ gameState, missionImage, cu
             <div className="text-right text-green-300">{gameState.galaxy.currentPlanet.physics.bumperBounce.toFixed(1)}x</div>
           </div>
         </div>
+
+        {/* Artifact Inventory */}
+        {gameState.galaxy.artifacts.length > 0 && (
+          <div className="border border-green-900 bg-green-900/5 p-3">
+            <div className="flex items-center gap-2 text-green-400 mb-2">
+              <Cpu className="w-4 h-4" />
+              <span className="text-xs font-bold tracking-widest">ARTIFACTS</span>
+            </div>
+            <div className="space-y-2 max-h-32 overflow-y-auto scrollbar-hide">
+              {gameState.galaxy.artifacts.map((artifact) => (
+                <div key={artifact.id} className="text-[10px] border-l border-green-700 pl-2">
+                  <div className="text-green-300 font-bold">{artifact.name}</div>
+                  <div className="text-green-600 leading-tight">{artifact.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* System Log / Mission */}

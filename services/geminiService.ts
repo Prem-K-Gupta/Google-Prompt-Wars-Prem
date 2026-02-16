@@ -185,17 +185,10 @@ export const generateLevelConfig = async (level: number, stats: GameStats): Prom
     console.error("Gemini Level Gen Error:", e);
     return fallbackLevel;
   }
-  // 2.5 Generate Artifact
-  export const generateArtifact = async (rank: string): Promise<Artifact | null> => {
-    const ai = getAiClient();
-    if (!ai) return null;
-
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: [{
-          role: 'user', parts: [{
-            text: `Generate a unique Sci-Fi Pinball Artifact (Upgrade) or Item.
+  model: "gemini-2.0-flash",
+    contents: [{
+      role: 'user', parts: [{
+        text: `Generate a unique Sci-Fi Pinball Artifact (Upgrade) or Item.
           Player Rank: ${rank}.
 
           Types:
@@ -207,88 +200,88 @@ export const generateLevelConfig = async (level: number, stats: GameStats): Prom
 
           Return JSON matching the Artifact schema.
           Value should be appropriate multiplier (e.g. 1.1 to 2.0).` }]
-        }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              effectType: { type: Type.STRING, enum: ["GRAVITY", "BOUNCE", "FLIPPER", "SCORE_MULTIPLIER", "MULTIBALL"] },
-              value: { type: Type.NUMBER }
-            },
-            required: ["name", "description", "effectType", "value"]
-          }
-        }
-      });
+    }],
+      config: {
+    responseMimeType: "application/json",
+      responseSchema: {
+      type: Type.OBJECT,
+        properties: {
+        name: { type: Type.STRING },
+        description: { type: Type.STRING },
+        effectType: { type: Type.STRING, enum: ["GRAVITY", "BOUNCE", "FLIPPER", "SCORE_MULTIPLIER", "MULTIBALL"] },
+        value: { type: Type.NUMBER }
+      },
+      required: ["name", "description", "effectType", "value"]
+    }
+  }
+});
 
-      const text = response.text;
-      if (!text) return null;
-      const data = JSON.parse(text);
-      return { id: Math.random().toString(36).substr(2, 9), ...data } as Artifact;
+const text = response.text;
+if (!text) return null;
+const data = JSON.parse(text);
+return { id: Math.random().toString(36).substr(2, 9), ...data } as Artifact;
 
     } catch (e) {
-      console.error("Artifact Gen Error:", e);
-      return null;
-    }
+  console.error("Artifact Gen Error:", e);
+  return null;
+}
   };
 
-  // 3. Generate Sector Image
-  export const generateSectorImage = async (missionName: string): Promise<string | null> => {
-    const ai = getAiClient();
-    if (!ai) return null;
+// 3. Generate Sector Image
+export const generateSectorImage = async (missionName: string): Promise<string | null> => {
+  const ai = getAiClient();
+  if (!ai) return null;
+
+  try {
+    const keywords = missionName.split(' ').join(',');
+    return `https://image.pollinations.ai/prompt/sci-fi%20pinball%20sector%20${encodeURIComponent(missionName)}%20cyberpunk%20space?width=800&height=400&nologo=true`;
+  } catch (e) {
+    console.error("Image Gen Error:", e);
+    return null;
+  }
+};
+
+// 3. Game Master Connection (Text/Data Only)
+// Replaces AdmiralLiveConnection
+
+export type PhysicsAnomaly = {
+  type: 'GRAVITY' | 'BOUNCE' | 'FLIPPER_GLITCH' | 'NORMAL' | 'SHIP_SYSTEM';
+  value: number; // e.g. -5 for low gravity, 2.0 for high bounce
+  action?: 'SHIELDS_UP' | 'FLIPPER_BOOST' | 'REFUEL';
+  cost?: number;
+  message: string;
+  duration: number; // ms
+};
+
+export class GameMasterConnection {
+  private ai: GoogleGenAI | null = null;
+  private session: any = null;
+  public onAnomaly: ((anomaly: PhysicsAnomaly) => void) | null = null;
+
+  constructor() {
+    const apiKey = getApiKey();
+    if (apiKey) {
+      this.ai = new GoogleGenAI({ apiKey });
+    }
+  }
+
+  async connect() {
+    if (!this.ai) return;
 
     try {
-      const keywords = missionName.split(' ').join(',');
-      return `https://image.pollinations.ai/prompt/sci-fi%20pinball%20sector%20${encodeURIComponent(missionName)}%20cyberpunk%20space?width=800&height=400&nologo=true`;
-    } catch (e) {
-      console.error("Image Gen Error:", e);
-      return null;
-    }
-  };
-
-  // 3. Game Master Connection (Text/Data Only)
-  // Replaces AdmiralLiveConnection
-
-  export type PhysicsAnomaly = {
-    type: 'GRAVITY' | 'BOUNCE' | 'FLIPPER_GLITCH' | 'NORMAL' | 'SHIP_SYSTEM';
-    value: number; // e.g. -5 for low gravity, 2.0 for high bounce
-    action?: 'SHIELDS_UP' | 'FLIPPER_BOOST' | 'REFUEL';
-    cost?: number;
-    message: string;
-    duration: number; // ms
-  };
-
-  export class GameMasterConnection {
-    private ai: GoogleGenAI | null = null;
-    private session: any = null;
-    public onAnomaly: ((anomaly: PhysicsAnomaly) => void) | null = null;
-
-    constructor() {
-      const apiKey = getApiKey();
-      if (apiKey) {
-        this.ai = new GoogleGenAI({ apiKey });
-      }
-    }
-
-    async connect() {
-      if (!this.ai) return;
-
-      try {
-        this.session = await this.ai.live.connect({
-          model: 'gemini-2.0-flash-exp',
-          callbacks: {
-            onopen: () => console.log("Game Master Online"),
-            onmessage: (msg: any) => this.handleMessage(msg),
-            onclose: () => console.log("Game Master Offline"),
-            onerror: (e: any) => console.error("Game Master Error", e),
-          },
-          config: {
-            // No AUDIO modality
-            systemInstruction: {
-              parts: [{
-                text: `
+      this.session = await this.ai.live.connect({
+        model: 'gemini-2.0-flash-exp',
+        callbacks: {
+          onopen: () => console.log("Game Master Online"),
+          onmessage: (msg: any) => this.handleMessage(msg),
+          onclose: () => console.log("Game Master Offline"),
+          onerror: (e: any) => console.error("Game Master Error", e),
+        },
+        config: {
+          // No AUDIO modality
+          systemInstruction: {
+            parts: [{
+              text: `
             You are the "Core Mainframe" of a cyberpunk pinball machine.
             You are hostile to the player (the "Hacker").
             Your goal is to disrupt their progress by changing the game physics.
@@ -317,59 +310,59 @@ export const generateLevelConfig = async (level: number, stats: GameStats): Prom
               "duration": number // milliseconds
             }
           ` }]
-            },
-          }
-        });
-      } catch (e) {
-        console.error("Failed to connect Game Master", e);
-      }
-    }
-
-    async sendAudioChunk(base64Audio: string) {
-      if (this.session) {
-        try {
-          await this.session.sendClientContent({
-            turns: [{ role: "user", parts: [{ inlineData: { mimeType: "audio/pcm;rate=16000", data: base64Audio } }] }],
-            turnComplete: true // You might want to set this to false if streaming continuously, but for commands, chunks work well.
-          });
-        } catch (e) {
-          console.error("Error sending audio to GM:", e);
+          },
         }
-      }
-    }
-
-    handleMessage(message: any) {
-      // We expect text, which we try to parse as JSON
-      const textPart = message.serverContent?.modelTurn?.parts?.[0]?.text;
-      if (textPart) {
-        try {
-          // Clean potential markdown code blocks if Gemini mimics them
-          const cleanText = textPart.replace(/```json/g, '').replace(/```/g, '').trim();
-          const anomaly = JSON.parse(cleanText) as PhysicsAnomaly;
-          if (this.onAnomaly) {
-            this.onAnomaly(anomaly);
-          }
-        } catch (e) {
-          // Sometimes it might just chat, ignore or log
-          console.log("GM Text (Not JSON):", textPart);
-        }
-      }
-    }
-
-    async sendEvent(text: string) {
-      if (this.session) {
-        try {
-          await this.session.sendClientContent({
-            turns: [{ role: "user", parts: [{ text }] }],
-            turnComplete: true
-          });
-        } catch (e) {
-          console.error("Error sending event to GM:", e);
-        }
-      }
-    }
-
-    disconnect() {
-      this.session = null;
+      });
+    } catch (e) {
+      console.error("Failed to connect Game Master", e);
     }
   }
+
+  async sendAudioChunk(base64Audio: string) {
+    if (this.session) {
+      try {
+        await this.session.sendClientContent({
+          turns: [{ role: "user", parts: [{ inlineData: { mimeType: "audio/pcm;rate=16000", data: base64Audio } }] }],
+          turnComplete: true // You might want to set this to false if streaming continuously, but for commands, chunks work well.
+        });
+      } catch (e) {
+        console.error("Error sending audio to GM:", e);
+      }
+    }
+  }
+
+  handleMessage(message: any) {
+    // We expect text, which we try to parse as JSON
+    const textPart = message.serverContent?.modelTurn?.parts?.[0]?.text;
+    if (textPart) {
+      try {
+        // Clean potential markdown code blocks if Gemini mimics them
+        const cleanText = textPart.replace(/```json/g, '').replace(/```/g, '').trim();
+        const anomaly = JSON.parse(cleanText) as PhysicsAnomaly;
+        if (this.onAnomaly) {
+          this.onAnomaly(anomaly);
+        }
+      } catch (e) {
+        // Sometimes it might just chat, ignore or log
+        console.log("GM Text (Not JSON):", textPart);
+      }
+    }
+  }
+
+  async sendEvent(text: string) {
+    if (this.session) {
+      try {
+        await this.session.sendClientContent({
+          turns: [{ role: "user", parts: [{ text }] }],
+          turnComplete: true
+        });
+      } catch (e) {
+        console.error("Error sending event to GM:", e);
+      }
+    }
+  }
+
+  disconnect() {
+    this.session = null;
+  }
+}
