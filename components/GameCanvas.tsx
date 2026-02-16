@@ -216,7 +216,7 @@ const Wall = ({ args, position, rotation = [0, 0, 0], visible = true }: any) => 
 );
 
 // --- Functional Ramp ---
-const Ramp = ({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) => {
+const Ramp = ({ position, rotation, onEnter }: { position: [number, number, number], rotation: [number, number, number], onEnter?: () => void }) => {
   return (
     <group position={position} rotation={rotation}>
       {/* Ramp Floor */}
@@ -235,6 +235,18 @@ const Ramp = ({ position, rotation }: { position: [number, number, number], rota
           <boxGeometry args={[0.2, 2, 8]} />
         </mesh>
       </RigidBody>
+
+      {/* Sensor for Event Tracking */}
+      {onEnter && (
+        <RigidBody type="fixed" sensor onIntersectionEnter={(e) => {
+          if (e.other.rigidBodyObject?.name === 'ball') {
+            onEnter();
+          }
+        }}>
+          <CuboidCollider args={[1.5, 1, 0.5]} position={[0, 0.5, 3]} />
+          {/* Positioned at entrance */}
+        </RigidBody>
+      )}
     </group>
   )
 }
@@ -322,8 +334,8 @@ const PinballTable = ({ onEvent, onScore, onWormhole, physics }: { onEvent: (e: 
       <Bumper position={[-4, 0.5, -4]} onHit={() => { onScore(300); onEvent(GameEvent.BUMPER_HIT); }} bounce={physics.bumperBounce} />
       <Bumper position={[3, 0.5, -4]} onHit={() => { onScore(300); onEvent(GameEvent.BUMPER_HIT); }} bounce={physics.bumperBounce} />
 
-      {/* Ramp (Left Side) */}
-      <Ramp position={[-7, 0, -5]} rotation={[0, 0.2, 0]} />
+      {/* Ramp (Left Side) - We need to add logic to ramp to emit event */}
+      <Ramp position={[-7, 0, -5]} rotation={[0, 0.2, 0]} onEnter={() => { onScore(1000); onEvent(GameEvent.LEFT_RAMP_SHOT); }} />
 
       {/* Wormhole (Top Right) */}
       <Wormhole position={[6, 1, -12]} onEnter={onWormhole} />
@@ -358,7 +370,7 @@ const GameScene: React.FC<GameSceneProps> = ({ status, physics, onEvent, onScore
 
   const handleWormhole = () => {
     onScore(5000);
-    onEvent(GameEvent.RAMP_SHOT); // Reuse event for now to trigger audio
+    onEvent(GameEvent.WORMHOLE_ENTERED);
     setWormholeTrigger(prev => prev + 1); // Triggers ball reset logic
   }
 

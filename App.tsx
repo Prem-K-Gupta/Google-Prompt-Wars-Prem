@@ -17,7 +17,14 @@ const App: React.FC = () => {
     balls: INITIAL_BALLS,
     status: GameStatus.IDLE,
     currentMission: null,
-    rank: "Hacker"
+    rank: "Hacker",
+    stats: {
+      leftRampHits: 0,
+      rightRampHits: 0,
+      bumperHits: 0,
+      wormholeEnters: 0,
+      drains: 0
+    }
   });
 
   const [physicsState, setPhysicsState] = useState<PhysicsState>(DEFAULT_PHYSICS);
@@ -68,7 +75,14 @@ const App: React.FC = () => {
       score: 0,
       balls: INITIAL_BALLS,
       status: GameStatus.PLAYING,
-      rank: "Script Kiddie"
+      rank: "Script Kiddie",
+      stats: { // Reset Stats
+        leftRampHits: 0,
+        rightRampHits: 0,
+        bumperHits: 0,
+        wormholeEnters: 0,
+        drains: 0
+      }
     }));
 
     const apiKey = getApiKey();
@@ -97,7 +111,8 @@ const App: React.FC = () => {
     setGameState(prev => {
       const newBalls = prev.balls - 1;
       const newStatus = newBalls <= 0 ? GameStatus.GAME_OVER : GameStatus.PLAYING;
-      return { ...prev, balls: newBalls, status: newStatus };
+      const newDrains = prev.stats.drains + 1;
+      return { ...prev, balls: newBalls, status: newStatus, stats: { ...prev.stats, drains: newDrains } };
     });
 
     if (gmRef.current) {
@@ -109,12 +124,26 @@ const App: React.FC = () => {
   const lastEventTime = useRef<number>(0);
   const handleGameEvent = useCallback(async (event: GameEvent) => {
     const now = Date.now();
+
+    // Update Stats
+    setGameState(prev => {
+      const stats = { ...prev.stats };
+      if (event === GameEvent.LEFT_RAMP_SHOT) stats.leftRampHits++;
+      if (event === GameEvent.RIGHT_RAMP_SHOT) stats.rightRampHits++;
+      if (event === GameEvent.BUMPER_HIT) stats.bumperHits++;
+      if (event === GameEvent.WORMHOLE_ENTERED) stats.wormholeEnters++;
+
+      return { ...prev, stats };
+    });
+
     if (now - lastEventTime.current < 2000) return;
     lastEventTime.current = now;
 
     if (gmRef.current) {
       if (event === GameEvent.BUMPER_HIT) gmRef.current.sendEvent("Firewall Breach (Bumper Hit)");
-      if (event === GameEvent.RAMP_SHOT) gmRef.current.sendEvent("Data Stream Accessed (Ramp Shot)");
+      if (event === GameEvent.LEFT_RAMP_SHOT) gmRef.current.sendEvent("Data Stream Accessed (Left Ramp)");
+      if (event === GameEvent.RIGHT_RAMP_SHOT) gmRef.current.sendEvent("Data Stream Accessed (Right Ramp)");
+      if (event === GameEvent.WORMHOLE_ENTERED) gmRef.current.sendEvent("Wormhole Traversal");
     }
   }, []);
 

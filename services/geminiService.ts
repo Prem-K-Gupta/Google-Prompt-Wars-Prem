@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { GameEvent } from "../types";
+import { GameEvent, GameStats } from "../types";
 
 // Helper to safely get API key
 export const getApiKey = () => {
@@ -18,6 +18,10 @@ const getAiClient = () => {
 
 // 1. Generate Mission Narrative
 export const generateMissionContext = async (score: number, currentRank: string): Promise<{ name: string; description: string; rank: string }> => {
+  return generateAdaptiveMission({ bumperHits: 0, leftRampHits: 0, rightRampHits: 0, wormholeEnters: 0, drains: 0 }, score, currentRank);
+};
+
+export const generateAdaptiveMission = async (stats: GameStats, score: number, currentRank: string): Promise<{ name: string; description: string; rank: string }> => {
   const ai = getAiClient();
   const fallback = {
     name: "Nebula Outpost Defense",
@@ -29,14 +33,28 @@ export const generateMissionContext = async (score: number, currentRank: string)
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // Upgrade to standard Flash
+      model: "gemini-2.0-flash",
       contents: [{
         role: 'user', parts: [{
-          text: `Generate a sci-fi pinball mission. Current Score: ${score}. Current Rank: ${currentRank}.
-      Return JSON with:
-      - name: Cool mission name (e.g. "Void Sector Breach")
-      - description: Short imperative objective (e.g. "Hit the bumpers to destabilize the core.")
-      - rank: A sci-fi military rank based on score (e.g. "Space Cadet", "Star Admiral").` }]
+          text: `You are the AI Dungeon Master of a sci-fi pinball game.
+          Current Score: ${score}.
+          Current Rank: ${currentRank}.
+          Player Stats (Session):
+          - Left Ramp Hits: ${stats.leftRampHits}
+          - Right Ramp Hits: ${stats.rightRampHits}
+          - Bumper Hits: ${stats.bumperHits}
+          - Wormhole Enters: ${stats.wormholeEnters}
+          - Drains: ${stats.drains}
+
+          Analyze the player's style.
+          - If they hit left ramp often, create a mission related to that (e.g., "Left Thrusters Overheating").
+          - If they hit bumpers often, maybe "Asteroid Field Clearance".
+          - If they drain often, maybe "Stabilize Gravity Well".
+
+          Generate a JSON object with:
+          - name: Creative mission name
+          - description: Short imperative objective based on their playstyle.
+          - rank: A sci-fi military rank based on score (e.g. "Space Cadet", "Star Admiral").` }]
       }],
       config: {
         responseMimeType: "application/json",
