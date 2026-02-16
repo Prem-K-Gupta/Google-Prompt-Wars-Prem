@@ -151,9 +151,14 @@ export class AdmiralLiveConnection {
     if (this.session) {
       try {
         // Send text as input to trigger reaction
-        await this.session.send({ parts: [{ text }] }, true); // true = end of turn
+        // v1.x adaptation: sendClientContent usually calls for turns or parts
+        // and turnComplete is part of the payload
+        await this.session.sendClientContent({
+          turns: [{ role: "user", parts: [{ text }] }],
+          turnComplete: true
+        });
       } catch (e) {
-        console.error("Error sending event to Admiral", e);
+        console.error("Error sending event to Admiral:", e);
       }
     }
   }
