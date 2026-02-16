@@ -24,7 +24,7 @@ export const generateMissionContext = async (score: number, currentRank: string)
   try {
     // Correct usage for @google/genai v0.1.0+
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-1.5-flash",
       contents: [{
         role: 'user', parts: [{
           text: `Generate a sci-fi pinball mission. Current Score: ${score}. Current Rank: ${currentRank}.
@@ -58,29 +58,8 @@ export const generateMissionContext = async (score: number, currentRank: string)
 
 // 2. Generate Sector Image
 export const generateSectorImage = async (missionName: string): Promise<string | null> => {
-  const ai = getAiClient();
-  if (!ai) return null;
-
-  try {
-    // Placeholder for image generation
-    return null;
-    // Note: Image generation via generateContent might need specific handling or tools depending on the model capabilities.
-    // Ensure the model supports image generation or use a specific imaging model if available via API.
-    // For now, attempting text-to-image if supported, otherwise this might just return text description of image.
-    // BUT wait, widely available gemini models don't generate images directly in response.text(). 
-    // They might return inlineData if it's an image model.
-    // Let's stick closer to the original intent but use standard API.
-
-    // Actually, image generation is usually via a separate endpoint or specific model behavior.
-    // If the original code used 'gemini-2.5-flash-image', maybe it was imaginary?
-    // Let's just try to get a text description for now if we can't generate images, or try the imagen model if available.
-    // For safety, let's return null to avoid errors if we aren't sure.
-    // Or just try standard generation.
-    return null;
-  } catch (e) {
-    console.error("Gemini Image Error:", e);
-    return null;
-  }
+  // Image generation is currently complex with the unified SDK, skipping for stability.
+  return null;
 };
 
 // 3. Live Connection (The Admiral)
