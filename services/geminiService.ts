@@ -17,13 +17,20 @@ const getAiClient = () => {
 };
 
 // 1. Generate Mission Narrative (Static Fallback)
+// 1. Generate Mission Narrative (Static Fallback)
 export const generateMissionContext = async (score: number, currentRank: string): Promise<{ name: string; description: string; rank: string }> => {
   const ai = getAiClient();
-  if (!ai) return { name: "Offline Mission", description: "Comms down. Survive manually.", rank: currentRank };
+  const fallback = {
+    name: "Nebula Outpost Defense",
+    description: "Defend the outpost! Shoot the ramps to charge shields.",
+    rank: currentRank
+  };
+
+  if (!ai) return fallback;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-1.5-flash",
       contents: [{
         role: 'user', parts: [{
           text: `Generate a sci-fi pinball mission. Current Score: ${score}. Current Rank: ${currentRank}.
@@ -50,8 +57,8 @@ export const generateMissionContext = async (score: number, currentRank: string)
     if (!text) throw new Error("No text returned by Gemini");
     return JSON.parse(text);
   } catch (e) {
-    console.error("Gemini Mission Error:", e);
-    return { name: "System Failure", description: "Rebooting AI core...", rank: "Cadet" };
+    console.error("Gemini Mission Error (using fallback):", e);
+    return fallback;
   }
 };
 
