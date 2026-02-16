@@ -116,8 +116,10 @@ export const generateSectorImage = async (missionName: string): Promise<string |
 // Replaces AdmiralLiveConnection
 
 export type PhysicsAnomaly = {
-  type: 'GRAVITY' | 'BOUNCE' | 'FLIPPER_GLITCH' | 'NORMAL';
+  type: 'GRAVITY' | 'BOUNCE' | 'FLIPPER_GLITCH' | 'NORMAL' | 'SHIP_SYSTEM';
   value: number; // e.g. -5 for low gravity, 2.0 for high bounce
+  action?: 'SHIELDS_UP' | 'FLIPPER_BOOST' | 'REFUEL';
+  cost?: number;
   message: string;
   duration: number; // ms
 };
@@ -160,12 +162,23 @@ export class GameMasterConnection {
             When the user sends an event (e.g. "Bumper Hit"), analyze it.
             If they are doing well, trigger a "System Anomaly" to stop them.
             
+            Use the "responseModality": "text" to ensure you only return JSON.
+            
+            When you receive AUDIO:
+            1. Transcribe the user's intent.
+            2. If they say "Shields" or "Defense", trigger SHIELDS_UP.
+            3. If they say "Power" or "Boost", trigger FLIPPER_BOOST.
+            4. If they say "Fuel" or "Refuel", trigger REFUEL (rare).
+            5. Otherwise, ignore or mock them via a "NORMAL" message.
+
             JSON Schema:
             {
-              "type": "GRAVITY" | "BOUNCE" | "FLIPPER_GLITCH" | "NORMAL",
-              "value": number, // GRAVITY: -30 is normal. -5 is Moon. -50 is Heavy. BOUNCE: 1 is normal. 0 is dead. 3 is super.
-              "message": "Short system alert string (e.g. 'GRAVITY SYSTEMS COMPROMISED')",
-              "duration": number // milliseconds, usually 5000-10000
+              "type": "GRAVITY" | "BOUNCE" | "FLIPPER_GLITCH" | "NORMAL" | "SHIP_SYSTEM",
+              "action"?: "SHIELDS_UP" | "FLIPPER_BOOST" | "REFUEL", // Only for SHIP_SYSTEM
+              "cost"?: number, // Fuel cost (e.g. 25)
+              "value": number, // For physics anomalies
+              "message": "Short system alert string",
+              "duration": number // milliseconds
             }
           ` }]
           },
@@ -173,6 +186,19 @@ export class GameMasterConnection {
       });
     } catch (e) {
       console.error("Failed to connect Game Master", e);
+    }
+  }
+
+  async sendAudioChunk(base64Audio: string) {
+    if (this.session) {
+      try {
+        await this.session.sendClientContent({
+          turns: [{ role: "user", parts: [{ inlineData: { mimeType: "audio/pcm;rate=16000", data: base64Audio } }] }],
+          turnComplete: true // You might want to set this to false if streaming continuously, but for commands, chunks work well.
+        });
+      } catch (e) {
+        console.error("Error sending audio to GM:", e);
+      }
     }
   }
 
