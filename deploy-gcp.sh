@@ -12,13 +12,19 @@ if [ -f .env.local ]; then
     source .env.local
     set +a
 else
-    echo "Error: .env.local file not found!"
-    exit 1
+    echo "⚠️  .env.local file not found."
 fi
 
+# Ensure API Key is available
 if [ -z "$VITE_GEMINI_API_KEY" ]; then
-    echo "Error: VITE_GEMINI_API_KEY is not set in .env.local"
-    exit 1
+    echo "❌ VITE_GEMINI_API_KEY is not set."
+    read -p "Please enter your Gemini API Key: " INPUT_KEY
+    
+    if [ -z "$INPUT_KEY" ]; then
+        echo "Error: API Key is required to build the app."
+        exit 1
+    fi
+    export VITE_GEMINI_API_KEY="$INPUT_KEY"
 fi
 
 echo "🚀 Deploying strictly to Google Cloud Project: $PROJECT_ID"

@@ -22,9 +22,8 @@ export const generateMissionContext = async (score: number, currentRank: string)
   if (!ai) return { name: "Offline Mission", description: "Comms down. Survive manually.", rank: currentRank };
 
   try {
-    // Correct usage for @google/genai v0.1.0+
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash-exp",
       contents: [{
         role: 'user', parts: [{
           text: `Generate a sci-fi pinball mission. Current Score: ${score}. Current Rank: ${currentRank}.
